@@ -5,77 +5,106 @@
 
 #include <iostream>
 #include "pugixml/pugixml.hpp"
+#include "algorithms.cpp"
 #include <chrono>
 
 // #define BASE_PATH "./../" // Debug path
 #define BASE_PATH "./../../" // Execution path
 
-DFA loadDfaFromFile(bool* dfaNullFlag);
-void exportDfaToFile(DFA dfa);
-DFA minimizeWithON2Algorithm(DFA dfa);
-DFA minimizeWithONLogNAlgorithm(DFA dfa);
-DFA generateDfa(int n);
+FA loadDfaFromFile(bool* faNullFlag);
+FA loadDfaFromERFile(bool* faNullFlag);
+std::string treatExpression(std::string expression);
+std::string treatStringChar(std::string stringChar);
+void exportDfaToFile(FA fa);
+FA minimizeDFA(FA fa);
+FA generateDfa(int n);
+FA loadFAFromRegularExpression(bool* faNullFlag, std::string regular_expression);
+FA transformNfaToDfa(FA fa);
 
 int main()
 {
-    DFA dfa = DFA();
-    bool dfaNullFlag = true;
+    FA fa = FA();
+    bool faNullFlag = true;
     bool quit = false;
 
     while (!quit) {
-        std::cout << "MENU:\n1. Load DFA file\n2. Export DFA\n3. Run O(n^2) Algorithm\n4. Run O(n log n) Algorithm\n5. Generate n states DFA\n0. Quit\nChoose option: ";
+        std::cout << "MENU:\
+        \n1. Load FA from Regular Expression\
+        \n2. Load FA from ER file\
+        \n3. Load FA from FA file\
+        \n4. Generate n states DFA\
+        \n5. Transform NFA to DFA\
+        \n6. Minimize DFA\
+        \n7. Export FA to XML file\
+        \n8. Test sentence in FA\
+        \n0. Quit\
+        \nChoose option: ";
         int option;
         std::cin >> option;
         switch (option) {
         case 1:
-            dfa = loadDfaFromFile(&dfaNullFlag);
-            break;
-        case 2:
-            if (dfaNullFlag) {
-                std::cout << "\nNo DFA loaded yet.\n\n";
+            {
+                std::cout << "Regular Expression: ";
+                std::string regular_expression;
+                std::cin >> regular_expression;
+                regular_expression = treatExpression(regular_expression);
+                fa = loadFAFromRegularExpression(&faNullFlag, regular_expression);
                 break;
             }
-            exportDfaToFile(dfa);
+        case 2:
+            fa = loadDfaFromERFile(&faNullFlag);
             break;
         case 3:
-            if (dfaNullFlag) {
-                std::cout << "\nNo DFA loaded yet.\n\n";
-                break;
-            }
-            try {
-                std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-                dfa = minimizeWithON2Algorithm(dfa);
-                std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-                std::cout << "Total time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << "ms\n\n";
-            } catch (const std::exception& e) {
-                std::cerr << e.what() << '\n';
-            }
+            fa = loadDfaFromFile(&faNullFlag);
             break;
-        case 4: 
-            if (dfaNullFlag) {
-                std::cout << "\nNo DFA loaded yet.\n\n";
-                break;
-            }
-            try {
-                std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-                dfa = minimizeWithONLogNAlgorithm(dfa);
-                std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-                std::cout << "Total time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << "ms\n\n";
-            } catch (const std::exception& e) {
-                std::cerr << e.what() << '\n';
-            }
-            break;
-        case 5:
+        case 4:
             std::cout << "Number of states: ";
             int n;
             std::cin >> n;
             if (n > 0) {
-                dfa = generateDfa(n);
-                dfaNullFlag = false;
+                fa = generateDfa(n);
+                faNullFlag = false;
             } else {
                 std::cout << "\nInvalid number of states.\n\n";
             }
             break;
+        case 5:
+            if (faNullFlag) {
+                std::cout << "\nNo FA loaded yet.\n\n";
+                break;
+            }
+            fa = transformNfaToDfa(fa);
+            break;
+        case 6:
+            if (faNullFlag) {
+                std::cout << "\nNo FA loaded yet.\n\n";
+                break;
+            }
+            fa = minimizeDFA(fa);
+            break;
+        case 7:
+            if (faNullFlag) {
+                std::cout << "\nNo FA loaded yet.\n\n";
+                break;
+            }
+            exportDfaToFile(fa);
+            break;
+        case 8:
+            {
+                if (faNullFlag) {
+                    std::cout << "\nNo FA loaded yet.\n\n";
+                    break;
+                }
+                std::cout << "Sentence to test: ";
+                std::string sentence;
+                std::cin >> sentence;
+                if (fa.testSentence(sentence)) {
+                    std::cout << "\nSentence accepted.\n\n";
+                } else {
+                    std::cout << "\nSentence rejected.\n\n";
+                }
+                break;
+            }
         default:
             quit = true;
             break;
@@ -86,12 +115,12 @@ int main()
 }
 
 /**
- * @brief Loads a DFA from a file
+ * @brief Loads a FA from a file that contains a FA
  * 
- * @param dfaNullFlag Pointer to a flag that indicates if the DFA is null
- * @return The DFA loaded from the file
+ * @param faNullFlag Pointer to a flag that indicates if the FA is null
+ * @return The FA loaded from the file
  */
-DFA loadDfaFromFile(bool* dfaNullFlag) {
+FA loadDfaFromFile(bool* faNullFlag) {
     std::cout << "File name to load: ";
     std::string file_name;
     std::cin >> file_name;
@@ -103,8 +132,8 @@ DFA loadDfaFromFile(bool* dfaNullFlag) {
 
     if (!existsFile(file_path)) {
         std::cout << "\nFile not found.\n\n";
-        *dfaNullFlag = true;
-        return DFA();
+        *faNullFlag = true;
+        return FA();
     }
 
     pugi::xml_document file;
@@ -112,48 +141,151 @@ DFA loadDfaFromFile(bool* dfaNullFlag) {
 
     if (!result) {
         std::cout << "\nError loading file.\n\n";
-        *dfaNullFlag = true;
-        return DFA();
+        *faNullFlag = true;
+        return FA();
     }
     
     std::cout << "File loaded successfully.\n";
 
-    std::cout << "Setting up DFA...\n";
+    std::cout << "Setting up FA...\n";
 
-    DFA dfa = DFA();
+    if (strcmp(file.child("structure").child_value("type"), "fa") != 0) {
+        std::cout << "\nFile is not a finite automaton file.\n\n";
+        *faNullFlag = true;
+        return FA();
+    }
+
+    FA fa = FA();
     pugi::xml_node automaton = file.child("structure").child("automaton");
 
     // Setting up states
     for (pugi::xml_node node = automaton.child("state"); node; node = node.next_sibling("state")) {
         std::string id = node.attribute("id").value();
-        dfa.addState(id);
+        fa.addState(id);
         if (node.child("initial")) {
-            dfa.setInitialState(id);
+            fa.setInitialState(id);
         }
         if (node.child("final")) {
-            dfa.addFinalState(id);
+            fa.addFinalState(id);
         }
     }
 
     // Setting up transitions
     for (pugi::xml_node node = automaton.child("transition"); node; node = node.next_sibling("transition")) {
         std::string symbol = node.child_value("read");
-        dfa.addSymbol(symbol);
-        dfa.addTransition(node.child_value("from"), symbol, node.child_value("to"));
+        symbol = treatStringChar(symbol);
+        fa.addSymbol(symbol);
+        fa.addTransition(node.child_value("from"), symbol, node.child_value("to"));
     }
 
-    std::cout << "DFA successfully setted up.\n\n";
+    std::cout << "FA successfully setted up.\n\n";
 
-    *dfaNullFlag = false;
-    return dfa;
+    *faNullFlag = false;
+    return fa;
 }
 
 /**
- * @brief Exports a DFA to a file
+ * @brief Loads a FA from a file that contains a regular expression
  * 
- * @param dfa The DFA to be exported
+ * @param faNullFlag Pointer to a flag that indicates if the FA is null
+ * @return The FA loaded from the file
  */
-void exportDfaToFile(DFA dfa) {
+FA loadDfaFromERFile(bool* faNullFlag) {
+    std::cout << "File name to load: ";
+    std::string file_name;
+    std::cin >> file_name;
+
+    std::cout << "\nLoading file...\n";
+
+    std::string s_base_path = BASE_PATH;
+    std::string file_path = s_base_path + "Data/" + file_name;
+
+    if (!existsFile(file_path)) {
+        std::cout << "\nFile not found.\n\n";
+        *faNullFlag = true;
+        return FA();
+    }
+
+    pugi::xml_document file;
+    pugi::xml_parse_result result = file.load_file(file_path.c_str());
+
+    if (!result) {
+        std::cout << "\nError loading file.\n\n";
+        *faNullFlag = true;
+        return FA();
+    }
+    
+    std::cout << "File loaded successfully.\n";
+
+    std::cout << "Setting up FA...\n";
+
+    if (strcmp(file.child("structure").child_value("type"), "re") != 0) {
+        std::cout << "\nFile is not a regular expression file.\n\n";
+        *faNullFlag = true;
+        return FA();
+    }
+
+    std::string regular_expression = file.child("structure").child_value("expression");
+
+    regular_expression = treatExpression(regular_expression);
+
+    return loadFAFromRegularExpression(faNullFlag, regular_expression);
+}
+
+/**
+ * @brief Treats an expression if it contains λ or spaces. Uses & instead of λ because the
+ * unicode character is not recognized by the compiler
+ * 
+ * @param expression The expression to be treated
+ * @return The treated expression
+ */
+// TODO: Validate expression
+std::string treatExpression(std::string expression) {
+    std::string treatedExpression = "";
+
+    // Getting λ
+    for (int i = 0; i < expression.length(); i++) {
+        char c = expression[i];
+        if (((int) c) >= 0) {
+            treatedExpression += c;
+        } else {
+            char next_char = expression[i + 1];
+            if (next_char == '\0' || ((int) next_char) >= 0) {
+                treatedExpression += '&';
+            }
+        }
+    }
+
+    // Removing spaces
+    treatedExpression.erase(std::remove(treatedExpression.begin(), treatedExpression.end(), ' '), treatedExpression.end());
+
+    return treatedExpression;
+}
+
+/**
+ * @brief Treats a string that contains a character. If the character is not a unicode character,
+ * it assumes it is λ and returns &. Otherwise, it returns the character
+ * 
+ * @param stringChar A string that contains a character
+ * @return std::string The treated string
+ */
+std::string treatStringChar(std::string stringChar) {
+    if (stringChar.length() > 1) return stringChar;
+    if (stringChar.length() == 0) return "&";
+    char c = stringChar[0];
+    if (((int) c) >= 0) {
+        return stringChar;
+    } else {
+        return "&";
+    }
+}
+
+/**
+ * @brief Exports a FA to a file
+ * 
+ * @param fa The FA to be exported
+ */
+void exportDfaToFile(FA fa) {
     std::cout << "File name to export: ";
     std::string file_name;
     std::cin >> file_name;
@@ -180,34 +312,39 @@ void exportDfaToFile(DFA dfa) {
         return;
     }
 
-    std::cout << "Exporting DFA...\n";
+    std::cout << "Exporting FA...\n";
     
     pugi::xml_node automaton = skeleton.child("structure").child("automaton");
 
     // Setting up states
-    for (state s : dfa.getStates()) {
+    for (state s : fa.getStates()) {
         pugi::xml_node state = automaton.append_child("state");
         state.append_attribute("id") = s.c_str();
         state.append_attribute("name") = ("q" + s).c_str();
         state.append_child("x").append_child(pugi::node_pcdata).set_value("0");
         state.append_child("y").append_child(pugi::node_pcdata).set_value("0");
-        if (s == dfa.getInitialState()) {
+        if (s == fa.getInitialState()) {
             state.append_child("initial");
         }
-        if (dfa.isFinalState(s)) {
+        if (fa.isFinalState(s)) {
             state.append_child("final");
         }
     }
 
     // Setting up transitions
-    for (std::pair<const transition, state> const& it : dfa.getTransitions()) {
-        pugi::xml_node transition = automaton.append_child("transition");
+    for (std::pair<const transition, std::set<state>> const& it : fa.getTransitions()) {
         const pugi::char_t* state1 = it.first.first.c_str();
-        const pugi::char_t* state2 = it.second.c_str();
         const pugi::char_t* symbol = it.first.second.c_str();
-        transition.append_child("from").append_child(pugi::node_pcdata).set_value(state1);
-        transition.append_child("to").append_child(pugi::node_pcdata).set_value(state2);
-        transition.append_child("read").append_child(pugi::node_pcdata).set_value(symbol);
+        if (strcmp(symbol, "&") == 0) {
+            symbol = "λ";
+        }
+        for (state s : it.second) {
+            const pugi::char_t* state2 = s.c_str();
+            pugi::xml_node transition = automaton.append_child("transition");
+            transition.append_child("from").append_child(pugi::node_pcdata).set_value(state1);
+            transition.append_child("to").append_child(pugi::node_pcdata).set_value(state2);
+            transition.append_child("read").append_child(pugi::node_pcdata).set_value(symbol);
+        }
     }
 
     skeleton.save_file(file_path.c_str());
@@ -216,25 +353,63 @@ void exportDfaToFile(DFA dfa) {
 }
 
 /**
- * @brief Runs an O(n^2) algorithm that minimizes a DFA. This algorithm was created by Blum (1996).
+ * @brief Generates a Finite Automaton from a Regular Expression
  * 
- * @param dfa The DFA to be minimized
- * 
- * @return The minimized DFA
+ * @param faNullFlag A flag that indicates if the FA is null
+ * @return The generated FA
  */
-DFA minimizeWithON2Algorithm(DFA dfa) {
-    return myOn2Algorithm(dfa);
+FA loadFAFromRegularExpression(bool* faNullFlag, std::string regular_expression) {
+    std::cout << "Loading FA from regular expression...\n";
+
+    FA fa = getFAFromRE(regular_expression);
+
+    if (fa.getStates().size() == 0) {
+        std::cout << "\nInvalid regular expression.\n\n";
+        *faNullFlag = true;
+        return FA();
+    }
+
+    std::cout << "FA successfully loaded.\n\n";
+
+    *faNullFlag = false;
+    return fa;
 }
 
 /**
- * @brief Runs an O(n log n) algorithm that minimizes a DFA. This algorithm was created by Blum (1996), it is a modification of the O(n^2) algorithm.
+ * @brief Transforms a NFA to a DFA
+ * 
+ * @param fa The NFA to be transformed
+ * @return The transformed DFA
+ */
+FA transformNfaToDfa(FA fa) {
+    FA newFA = fa;
+    if (newFA.hasLambda()) {
+        std::cout << "\nRemoving lambda transitions...\n";
+        newFA = removeLambdaTransitions(newFA);
+        std::cout << "Lambda transitions successfully removed.\n";
+    }
+    if (!newFA.isDeterministic()) {
+        std::cout << "\nDeterminizing...\n";
+        newFA = determinizeFA(newFA);
+        std::cout << "FA successfully determinized.\n";
+    }
+    std::cout << "\n";
+    return newFA;
+}
+
+/**
+ * @brief Runs an O(n^2) algorithm that minimizes a DFA
  * 
  * @param dfa The DFA to be minimized
  * 
  * @return The minimized DFA
  */
-DFA minimizeWithONLogNAlgorithm(DFA dfa) {
-    return blumOnLognAlgorithm(dfa);
+FA minimizeDFA(FA dfa) {
+    if (dfa.hasLambda() || !dfa.isDeterministic()) {
+        std::cout << "\nThe automaton is not deterministic.\n\n";
+        return dfa;
+    }
+    return automatonMinimizationAlgorithm(dfa);
 }
 
 /**
@@ -243,8 +418,8 @@ DFA minimizeWithONLogNAlgorithm(DFA dfa) {
  * @param n The number of states
  * @return The generated DFA
  */
-DFA generateDfa(int n) {
-    DFA dfa = DFA();
+FA generateDfa(int n) {
+    FA dfa = FA();
     dfa.addSymbol("a");
     for (int i = 0; i < n; i++) {
         dfa.addState(std::to_string(i));
