@@ -5,6 +5,7 @@
 		<state id="1" name="q1">
 			<x>0</x>
 			<y>0</y>
+			<initial />
 		</state>
 		<state id="2" name="q2">
 			<x>0</x>
@@ -17,17 +18,21 @@
 		<state id="4" name="q4">
 			<x>0</x>
 			<y>0</y>
-			<final />
 		</state>
 		<state id="5" name="q5">
 			<x>0</x>
 			<y>0</y>
-			<initial />
+			<final />
 		</state>
 		<transition>
 			<from>1</from>
-			<to>2</to>
-			<read>λ</read>
+			<to>3</to>
+			<read>a</read>
+		</transition>
+		<transition>
+			<from>1</from>
+			<to>4</to>
+			<read>a</read>
 		</transition>
 		<transition>
 			<from>2</from>
@@ -35,24 +40,19 @@
 			<read>a</read>
 		</transition>
 		<transition>
-			<from>3</from>
-			<to>1</to>
-			<read>λ</read>
+			<from>2</from>
+			<to>4</to>
+			<read>a</read>
 		</transition>
 		<transition>
 			<from>3</from>
-			<to>2f1c0a1</to>
-			<read>λ</read>
+			<to>5</to>
+			<read>b</read>
 		</transition>
 		<transition>
-			<from>5</from>
-			<to>1</to>
-			<read>λ</read>
-		</transition>
-		<transition>
-			<from>5</from>
-			<to>2f1c0a1</to>
-			<read>λ</read>
+			<from>4</from>
+			<to>5</to>
+			<read>b</read>
 		</transition>
 	</automaton>
 </structure>

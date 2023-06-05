@@ -392,64 +392,82 @@ FA singleCharAutomaton(std::string c, int* state_name_differ) {
  * @param state_name_differ A pointer to an integer that will be used to make the names of the states of the FA unique
  * @return The generated FA
  */
-FA getSubExFA(std::string re, int* reading_index, int* state_name_differ) {
-    FA automaton = FA(
-        {"0"},
-        std::set<std::string>(),
-        std::map<transition, std::set<state>>(),
-        "0",
-        {"0"}
-    );
-    while (*reading_index < re.size()) {
-        char c = re[*reading_index];
-        
-        switch (c) {
-        case '*':
-            automaton = kleeneStar(automaton,state_name_differ);
+FA getSubExFA(std::string re, FA* automaton, int* reading_index, int* state_name_differ) {
+    if (*reading_index > re.size()-1) {
+        return *automaton;
+    }
+    char c = re[*reading_index];
+    
+    switch (c) {
+    case '+':
+        {
+            *reading_index = *reading_index + 1;
+            FA sub_automaton = FA(
+                {std::to_string(*state_name_differ)},
+                std::set<std::string>(),
+                std::map<transition, std::set<state>>(),
+                std::to_string(*state_name_differ),
+                {std::to_string(*state_name_differ)}
+            );
+            *state_name_differ = *state_name_differ + 1;
+            sub_automaton = getSubExFA(re,&sub_automaton,reading_index,state_name_differ);
+            *state_name_differ = *state_name_differ + 1;
+            *automaton = uniteAutomatons(*automaton,sub_automaton,state_name_differ);
             *state_name_differ = *state_name_differ + 1;
             break;
-        case '+':
-            {
-                *reading_index = *reading_index + 1;
-                FA sub_automaton = getSubExFA(re,reading_index,state_name_differ);
-                *state_name_differ = *state_name_differ + 1;
-                automaton = uniteAutomatons(automaton,sub_automaton,state_name_differ);
-                *state_name_differ = *state_name_differ + 1;
-                break;
-            }
-        case ')':
-            *reading_index = *reading_index + 1;
-            return automaton;
-            break;
-        case '(':
-            {
-                reading_index++;
-                FA sub_automaton = getSubExFA(re,reading_index,state_name_differ);
-                *state_name_differ = *state_name_differ + 1;
-                automaton = concatAutomatons(automaton,sub_automaton,state_name_differ);
-                *state_name_differ = *state_name_differ + 1;
-                break;
-            }
-        default:
-            {
-                if (!has(automaton.getAlphabet(),std::string(1,c)) && c != '&') {
-                    automaton.addSymbol(std::string(1,c));
-                }
-
-                std::string symbol_string = std::string(1,c);
-
-                FA sub_automaton = singleCharAutomaton(symbol_string,state_name_differ);
-                *state_name_differ = *state_name_differ + 1;
-
-                automaton = concatAutomatons(automaton, sub_automaton, state_name_differ);
-                *state_name_differ = *state_name_differ + 1;
-
-                break;
-            }
         }
+    case ')':
         *reading_index = *reading_index + 1;
+        return *automaton;
+        break;
+    case '(':
+        {
+            *reading_index = *reading_index + 1;
+            FA sub_automaton = FA(
+                {"0"},
+                std::set<std::string>(),
+                std::map<transition, std::set<state>>(),
+                "0",
+                {"0"}
+            );
+            sub_automaton = getSubExFA(re,&sub_automaton,reading_index,state_name_differ);
+            *state_name_differ = *state_name_differ + 1;
+
+            // Kleene star
+            if (re[*reading_index] == '*') {
+                *reading_index = *reading_index + 1;
+                sub_automaton = kleeneStar(sub_automaton,state_name_differ);
+                *state_name_differ = *state_name_differ + 1;
+            }
+
+            *automaton = concatAutomatons(*automaton,sub_automaton,state_name_differ);
+            *state_name_differ = *state_name_differ + 1;
+            break;
+        }
+    default:
+        {
+            automaton->addSymbol(std::string(1,c));
+
+            std::string symbol_string = std::string(1,c);
+
+            FA sub_automaton = singleCharAutomaton(symbol_string,state_name_differ);
+            *state_name_differ = *state_name_differ + 1;
+
+            // Kleene star
+            if (re[*reading_index+1] == '*') {
+                *reading_index = *reading_index + 1;
+                sub_automaton = kleeneStar(sub_automaton,state_name_differ);
+                *state_name_differ = *state_name_differ + 1;
+            }
+
+            *automaton = concatAutomatons(*automaton, sub_automaton, state_name_differ);
+            *state_name_differ = *state_name_differ + 1;
+
+            break;
+        }
     }
-    return automaton;
+    *reading_index = *reading_index + 1;
+    return getSubExFA(re, automaton, reading_index, state_name_differ);
 }
 
 /**
@@ -461,11 +479,18 @@ FA getSubExFA(std::string re, int* reading_index, int* state_name_differ) {
 FA getFAFromRE(std::string re) {
     int state_name_differ = 0;
     int reading_index = 0;
-
+    
     // Invalid RE
     if (re[0] == ')' || re[0] == '*' || re[0] == '+') return FA();
 
-    FA automaton = getSubExFA(re, &reading_index, &state_name_differ);
+    FA automaton = FA(
+        {"0"},
+        std::set<std::string>(),
+        std::map<transition, std::set<state>>(),
+        "0",
+        {"0"}
+    );
+    automaton = getSubExFA(re, &automaton, &reading_index, &state_name_differ);
 
     automaton.renameAutomatonStates();
 
@@ -490,9 +515,6 @@ FA removeLambdaTransitions(FA fa) {
         fechos_lambda.insert(std::make_pair(state,fa.getStatesFromLambdaTransition(state)));
     }
     
-    std::cout << "FECHO DO ESTADO INICIAL: ";
-    printSuperState(fa.getStatesFromLambdaTransition(fa.getInitialState()));
-
     // Step 2
     // Creating δ' transitions
     std::map<transition, std::set<state>> new_transitions = std::map<transition, std::set<state>>();
@@ -620,6 +642,7 @@ FA determinizeFA(FA fa) {
     // Step 5
     // Convert SuperFA to FA
     FA newFa = superFa.convertToFa();
+
     newFa.renameAutomatonStates();
 
     return newFa;

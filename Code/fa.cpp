@@ -8,6 +8,7 @@
 #include <utility>
 #include <iostream>
 #include "utils.cpp"
+#include "string.h"
 
 typedef std::string state;
 typedef std::pair<state, std::string> transition;
@@ -52,6 +53,12 @@ public:
      * @param s The state to be added
      */
     void addState(state s) {
+        if (s.length() == 0) {
+            return;
+        }
+        if (has(this->getStates(),s)) {
+            return;
+        }
         this->states.insert(s);
     }
 
@@ -62,17 +69,14 @@ public:
      */
     void addSymbol(std::string symbol) {
         if (symbol.length() == 0) {
-            std::cout << "Symbol cannot be empty" << std::endl;
             return;
         }
         if (symbol.length() <= 1) {
             char c = symbol[0];
             if (((int) c) <= 0) {
-                std::cout << "The symbol " << c << " can not be added to the alphabet."<< std::endl;
                 return;
             }
             if (c == '&') {
-                std::cout << "The symbol & can not be added to the alphabet."<< std::endl;
                 return;
             }
         }
@@ -240,7 +244,7 @@ public:
                 continue;
             }
             char c = transition.first.second[0];
-            if (((int) c) <= 0 || c == '&' || c == 'λ') {
+            if (c == '&') {
                 return true;
             }
         }
@@ -270,6 +274,7 @@ public:
             std::set<state> aux;
             for (state s : new_reachable_states) {
                 for (std::string symbol : this->alphabet) {
+                    if (this->transite(s, symbol).size() != 1) continue;
                     state next_state = *this->transite(s, symbol).begin();
                     if (!has(reachable_states,next_state)) {
                         aux.insert(next_state);
@@ -303,37 +308,25 @@ public:
         // Renaming state
         this->states.erase(s);
         this->addState(new_name);
-
-        std::cout << "RENAMING STATE " << s << " TO " << new_name << std::endl;
-
+        
+        std::map<transition, std::set<state>> iterTransitions = this->getTransitions();
         // Updating transitions
-        for (auto const& aTransition : this->getTransitions()) {
+        for (auto const& aTransition : iterTransitions) {
             if (aTransition.second.size() == 0) continue; // No transition
-            std::string to_state_name = *aTransition.second.begin();
 
-            std::cout << "Checking transition " << aTransition.first.first << " -> " << aTransition.first.second << " -> " << to_state_name << std::endl;
+            transition fTransition = aTransition.first;
 
-            // If the transition is from the state to itself, that transition must be updated in a special way
-            if (strcmp(aTransition.first.first.c_str(),s.c_str()) == 0  && has(aTransition.second, s) && strcmp(to_state_name.c_str(),aTransition.first.first.c_str()) == 0) {
-                std::cout << "Transition is from state to itself" << std::endl;                
-                this->transitions.erase(aTransition.first);
-                this->transitions[std::make_pair(new_name, aTransition.first.second)].insert(new_name);
-                continue;
+            // Has transition from it
+            if (strcmp(fTransition.first.c_str(),s.c_str()) == 0) {
+                this->transitions[std::make_pair(new_name, fTransition.second)] = aTransition.second;
+                this->transitions.erase(fTransition);
+                fTransition = std::make_pair(new_name, fTransition.second);
             }
             // Has transition to it
-            if (strcmp(to_state_name.c_str(),s.c_str()) == 0) {
-                std::cout << "Transition is to it" << std::endl;
-                this->transitions[aTransition.first].insert(new_name);
-                this->transitions[aTransition.first].erase(s);
+            if (has(aTransition.second, s)) {
+                this->transitions[fTransition].insert(new_name);
+                this->transitions[fTransition].erase(s);
             }
-            // Has transition from it
-            if (strcmp(aTransition.first.first.c_str(),s.c_str()) == 0) {
-                std::cout << "Transition is from it" << std::endl;
-                this->transitions[std::make_pair(new_name, aTransition.first.second)] = aTransition.second;
-                this->transitions.erase(aTransition.first);
-            }
-
-            std::cout << "New transition " << aTransition.first.first << " -> " << aTransition.first.second << " -> " << to_state_name << std::endl;
         }
 
         // Updating initial state
@@ -346,8 +339,6 @@ public:
             this->final_states.erase(s);
             this->addFinalState(new_name);
         }
-
-        std::cout << "===========================================================" << std::endl;
     }
 
     /**
@@ -408,8 +399,8 @@ public:
      * @param sentence The sentence to be tested
      * @return true if the sentence is accepted by the FA. false otherwise
      */
-    bool testSentence(std::string sentence, state current_state = "-") {
-        if (strcmp(current_state.c_str(),"-")) {
+    bool testSentence(std::string sentence, state current_state = "") {
+        if (current_state.empty()) {
             current_state = this->initial_state;
         }
 

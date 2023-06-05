@@ -7,9 +7,11 @@
 #include "pugixml/pugixml.hpp"
 #include "algorithms.cpp"
 #include <chrono>
+#include <fstream>
 
 // #define BASE_PATH "./../" // Debug path
 #define BASE_PATH "./../../" // Execution path
+
 
 FA loadDfaFromFile(bool* faNullFlag);
 FA loadDfaFromERFile(bool* faNullFlag);
@@ -20,6 +22,7 @@ FA minimizeDFA(FA fa);
 FA generateDfa(int n);
 FA loadFAFromRegularExpression(bool* faNullFlag, std::string regular_expression);
 FA transformNfaToDfa(FA fa);
+void testMultipleSentences(FA fa);
 
 int main()
 {
@@ -31,12 +34,10 @@ int main()
         std::cout << "MENU:\
         \n1. Load FA from Regular Expression\
         \n2. Load FA from ER file\
-        \n3. Load FA from FA file\
-        \n4. Generate n states DFA\
-        \n5. Transform NFA to DFA\
-        \n6. Minimize DFA\
-        \n7. Export FA to XML file\
-        \n8. Test sentence in FA\
+        \n3. Transform NFA to DFA\
+        \n4. Export FA to XML file\
+        \n5. Test single sentence\
+        \n6. Test multiple sentences\
         \n0. Quit\
         \nChoose option: ";
         int option;
@@ -55,41 +56,20 @@ int main()
             fa = loadDfaFromERFile(&faNullFlag);
             break;
         case 3:
-            fa = loadDfaFromFile(&faNullFlag);
-            break;
-        case 4:
-            std::cout << "Number of states: ";
-            int n;
-            std::cin >> n;
-            if (n > 0) {
-                fa = generateDfa(n);
-                faNullFlag = false;
-            } else {
-                std::cout << "\nInvalid number of states.\n\n";
-            }
-            break;
-        case 5:
             if (faNullFlag) {
                 std::cout << "\nNo FA loaded yet.\n\n";
                 break;
             }
             fa = transformNfaToDfa(fa);
             break;
-        case 6:
-            if (faNullFlag) {
-                std::cout << "\nNo FA loaded yet.\n\n";
-                break;
-            }
-            fa = minimizeDFA(fa);
-            break;
-        case 7:
+        case 4:
             if (faNullFlag) {
                 std::cout << "\nNo FA loaded yet.\n\n";
                 break;
             }
             exportDfaToFile(fa);
             break;
-        case 8:
+        case 5:
             {
                 if (faNullFlag) {
                     std::cout << "\nNo FA loaded yet.\n\n";
@@ -103,6 +83,15 @@ int main()
                 } else {
                     std::cout << "\nSentence rejected.\n\n";
                 }
+                break;
+            }
+        case 6:
+            {
+                if (faNullFlag) {
+                    std::cout << "\nNo FA loaded yet.\n\n";
+                    break;
+                }
+                testMultipleSentences(fa);
                 break;
             }
         default:
@@ -239,7 +228,6 @@ FA loadDfaFromERFile(bool* faNullFlag) {
  * @param expression The expression to be treated
  * @return The treated expression
  */
-// TODO: Validate expression
 std::string treatExpression(std::string expression) {
     std::string treatedExpression = "";
 
@@ -271,7 +259,7 @@ std::string treatExpression(std::string expression) {
  */
 std::string treatStringChar(std::string stringChar) {
     if (stringChar.length() > 1) return stringChar;
-    if (stringChar.length() == 0) return "&";
+    if (stringChar.length() <= 0) return "&";
     char c = stringChar[0];
     if (((int) c) >= 0) {
         return stringChar;
@@ -336,7 +324,7 @@ void exportDfaToFile(FA fa) {
         const pugi::char_t* state1 = it.first.first.c_str();
         const pugi::char_t* symbol = it.first.second.c_str();
         if (strcmp(symbol, "&") == 0) {
-            symbol = "λ";
+            symbol = "";
         }
         for (state s : it.second) {
             const pugi::char_t* state2 = s.c_str();
@@ -391,6 +379,7 @@ FA transformNfaToDfa(FA fa) {
     if (!newFA.isDeterministic()) {
         std::cout << "\nDeterminizing...\n";
         newFA = determinizeFA(newFA);
+        newFA.removeUnreachableStates();
         std::cout << "FA successfully determinized.\n";
     }
     std::cout << "\n";
@@ -430,4 +419,42 @@ FA generateDfa(int n) {
         dfa.addTransition(std::to_string(i), "a", std::to_string((i + 1) % n));
     }
     return dfa;
+}
+
+/**
+ * @brief Tests multiple sentences in a FA. The sentences are read from a file.
+ * 
+ * @param fa The FA to be tested
+ */
+void testMultipleSentences(FA fa) {
+    std::cout << "File name to load: ";
+    std::string file_name;
+    std::cin >> file_name;
+
+    std::cout << "Loading file...\n";
+
+    std::string s_base_path = BASE_PATH;
+    std::string file_path = s_base_path + "Data/" + file_name;
+
+    if (!existsFile(file_path)) {
+        std::cout << "\nFile not found.\n\n";
+        return;
+    }
+
+    std::ifstream file(file_path);
+    std::string line;
+
+    if (file.is_open()) {
+        while (getline(file,line)) {
+            std::cout << "\nSentence: " << line << " => ";
+            if (fa.testSentence(line)) {
+                std::cout << "Accepted.";
+            } else {
+                std::cout << "Rejected.";
+            }
+        }
+        file.close();
+    }
+
+    std::cout << "\n\n";
 }

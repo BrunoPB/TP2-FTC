@@ -53,6 +53,12 @@ public:
      * @param s The super state to be added
      */
     void addState(superState s) {
+        if (s.size() == 0) {
+            return;
+        }
+        if (has(this->getStates(),s)) {
+            return;
+        }
         this->states.insert(s);
     }
 
@@ -62,6 +68,18 @@ public:
      * @param symbol The symbol to be added
      */
     void addSymbol(std::string symbol) {
+        if (symbol.length() == 0) {
+            return;
+        }
+        if (symbol.length() <= 1) {
+            char c = symbol[0];
+            if (((int) c) <= 0) {
+                return;
+            }
+            if (c == '&') {
+                return;
+            }
+        }
         this->alphabet.insert(symbol);
     }
 
@@ -240,11 +258,12 @@ public:
         }
 
         // Setting up states
-        for (superState super_state : this->states) {
+        for (superState ss : this->getStates()) {
             std::string state_name = "";
-            for (state s : super_state) {
+            for (state s : ss) {
                 state_name += (s + separator);
             }
+            if (state_name == "") continue;
             state_name.pop_back();
             fa.addState(state_name);
         }
