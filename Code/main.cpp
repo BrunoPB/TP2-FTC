@@ -22,6 +22,7 @@ FA minimizeDFA(FA fa);
 FA generateDfa(int n);
 FA loadFAFromRegularExpression(bool* faNullFlag, std::string regular_expression);
 FA transformNfaToDfa(FA fa);
+FA transformNfaLToNfa(FA fa);
 void testMultipleSentences(FA fa);
 
 int main()
@@ -34,10 +35,11 @@ int main()
         std::cout << "MENU:\
         \n1. Load FA from Regular Expression\
         \n2. Load FA from ER file\
-        \n3. Transform NFA to DFA\
-        \n4. Export FA to XML file\
-        \n5. Test single sentence\
-        \n6. Test multiple sentences\
+        \n3. Transform NFA-lambda to NFA\
+        \n4. Transform NFA to DFA\
+        \n5. Export FA to XML file\
+        \n6. Test single sentence\
+        \n7. Test multiple sentences\
         \n0. Quit\
         \nChoose option: ";
         int option;
@@ -60,16 +62,23 @@ int main()
                 std::cout << "\nNo FA loaded yet.\n\n";
                 break;
             }
-            fa = transformNfaToDfa(fa);
+            fa = transformNfaLToNfa(fa);
             break;
         case 4:
             if (faNullFlag) {
                 std::cout << "\nNo FA loaded yet.\n\n";
                 break;
             }
-            exportDfaToFile(fa);
+            fa = transformNfaToDfa(fa);
             break;
         case 5:
+            if (faNullFlag) {
+                std::cout << "\nNo FA loaded yet.\n\n";
+                break;
+            }
+            exportDfaToFile(fa);
+            break;
+        case 6:
             {
                 if (faNullFlag) {
                     std::cout << "\nNo FA loaded yet.\n\n";
@@ -85,7 +94,7 @@ int main()
                 }
                 break;
             }
-        case 6:
+        case 7:
             {
                 if (faNullFlag) {
                     std::cout << "\nNo FA loaded yet.\n\n";
@@ -218,7 +227,17 @@ FA loadDfaFromERFile(bool* faNullFlag) {
 
     regular_expression = treatExpression(regular_expression);
 
-    return loadFAFromRegularExpression(faNullFlag, regular_expression);
+    FA fa = FA();
+    try {
+        std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+        fa = loadFAFromRegularExpression(faNullFlag, regular_expression);
+        std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+        std::cout << "Total time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << "ms\n\n";
+    } catch (const std::exception& e) {
+        std::cerr << e.what() << '\n';
+    }
+
+    return fa;
 }
 
 /**
@@ -364,6 +383,31 @@ FA loadFAFromRegularExpression(bool* faNullFlag, std::string regular_expression)
 }
 
 /**
+ * @brief Transforms a NFA-λ to an NFA
+ * 
+ * @param fa The NFA-λ to be transformed
+ * @return The transformed NFA
+ */
+FA transformNfaLToNfa(FA fa) {
+    FA newFA = fa;
+
+    try {
+        if (newFA.hasLambda()) {
+            std::cout << "\nRemoving lambda transitions...\n";
+            std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+            newFA = removeLambdaTransitions(newFA);
+            std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+            std::cout << "Lambda transitions successfully removed.\n";
+            std::cout << "To AFN time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << "ms\n\n";
+        }
+    } catch (const std::exception& e) {
+        std::cerr << e.what() << '\n';
+    }
+    
+    return newFA;
+}
+
+/**
  * @brief Transforms a NFA to a DFA
  * 
  * @param fa The NFA to be transformed
@@ -371,18 +415,26 @@ FA loadFAFromRegularExpression(bool* faNullFlag, std::string regular_expression)
  */
 FA transformNfaToDfa(FA fa) {
     FA newFA = fa;
+
     if (newFA.hasLambda()) {
-        std::cout << "\nRemoving lambda transitions...\n";
-        newFA = removeLambdaTransitions(newFA);
-        std::cout << "Lambda transitions successfully removed.\n";
+        std::cout << "\nCan not determinize a NFA-λ.\n\n";
+        return newFA;
     }
-    if (!newFA.isDeterministic()) {
-        std::cout << "\nDeterminizing...\n";
-        newFA = determinizeFA(newFA);
-        newFA.removeUnreachableStates();
-        std::cout << "FA successfully determinized.\n";
+
+    try {
+        if (!newFA.isDeterministic()) {
+            std::cout << "\nDeterminizing...\n";
+            std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+            newFA = determinizeFA(newFA);
+            std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+            newFA.removeUnreachableStates();
+            std::cout << "FA successfully determinized.\n";
+            std::cout << "To AFD time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << "ms\n\n";
+        }
+    } catch (const std::exception& e) {
+        std::cerr << e.what() << '\n';
     }
-    std::cout << "\n";
+
     return newFA;
 }
 

@@ -1,4 +1,5 @@
 ab
-aab
-b
-a
+abac
+abb
+abc
+bab
